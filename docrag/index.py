@@ -17,13 +17,6 @@ from docrag.ingest import find_pdfs, load_pages, split
 DEFAULT_CHUNK_SIZE = 400
 
 
-class _DefaultChunkSize(int):
-    pass
-
-
-_DEFAULT_CHUNK_SIZE = _DefaultChunkSize(DEFAULT_CHUNK_SIZE)
-
-
 @dataclass
 class IngestReport:
     """Summary of one index update."""
@@ -52,20 +45,17 @@ class Index:
         cls,
         directory: Path,
         embedder=None,
-        chunk_size: int | None = _DEFAULT_CHUNK_SIZE,
+        chunk_size: int | None = None,
         overlap: int | None = None,
     ) -> "Index":
         """Load an index, or create an empty one with the requested settings."""
         directory = Path(directory)
-        chunk_size_requested = chunk_size is not _DEFAULT_CHUNK_SIZE and chunk_size is not None
-        if chunk_size is _DEFAULT_CHUNK_SIZE:
-            chunk_size = None
         manifest_path = directory / "manifest.json"
         manifest = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.exists() else None
         if manifest:
             stored_size = manifest["chunk_size"]
             stored_overlap = manifest["overlap"]
-            if chunk_size_requested and chunk_size != stored_size:
+            if chunk_size is not None and chunk_size != stored_size:
                 raise ValueError("index chunk size differs; pass --rebuild to create a new index")
             if overlap is not None and overlap != stored_overlap:
                 raise ValueError("index overlap differs; pass --rebuild to create a new index")
@@ -196,7 +186,14 @@ class Index:
             assigned[str(path)] = candidate
         return assigned
 
-    def add(self, paths: list[Path], ocr: str = "auto", rebuild: bool = False) -> IngestReport:
+    def add(
+        self,
+        paths: list[Path],
+        ocr: str = "auto",
+        rebuild: bool = False,
+        progress=None,
+        ocr_language: str = "eng",
+    ) -> IngestReport:
         """Incrementally index PDFs and preserve unchanged embeddings."""
         pdfs = find_pdfs(paths)
         report = IngestReport()
@@ -208,27 +205,36 @@ class Index:
         current_by_path = {row["path"]: name for name, row in self._documents.items()}
         replacements = []
         additions = []
-        for pdf in pdfs:
+
+        def notify(position: int, name: str, status: str) -> None:
+            if progress is not None:
+                progress(position, len(pdfs), name, status)
+
+        for position, pdf in enumerate(pdfs, start=1):
             path = str(pdf.resolve())
             name = names[path]
             digest = self._sha256(pdf)
             existing_name = current_by_path.get(path)
             if existing_name and self._documents[existing_name]["sha256"] == digest:
                 report.unchanged.append(existing_name)
+                notify(position, existing_name, "unchanged")
                 continue
             try:
-                pages = load_pages(pdf, name, ocr=ocr)
+                pages = load_pages(pdf, name, ocr=ocr, ocr_language=ocr_language)
                 if not pages:
                     report.skipped.append((name, "no extractable text"))
+                    notify(position, name, "skipped")
                     continue
                 chunks = split(pages, self.chunk_size, self.overlap)
                 if not chunks:
                     report.skipped.append((name, "no extractable text"))
+                    notify(position, name, "skipped")
                     continue
                 with pymupdf.open(pdf) as document:
                     page_count = document.page_count
             except (ValueError, OSError, RuntimeError, pymupdf.FileDataError) as exc:
                 report.skipped.append((name, str(exc)))
+                notify(position, name, "skipped")
                 continue
             vectors = self.embedder.embed_documents([chunk.page_content for chunk in chunks])
             vectors = np.asarray(vectors, dtype=np.float32)
@@ -237,9 +243,11 @@ class Index:
             if existing_name:
                 replacements.append((existing_name, name, path, digest, page_count, chunks, vectors))
                 report.updated.append(existing_name)
+                notify(position, existing_name, "updated")
             else:
                 additions.append((name, path, digest, page_count, chunks, vectors))
                 report.added.append(name)
+                notify(position, name, "added")
         removed_chunks = {name for name, *_ in replacements}
         kept_chunks = [chunk for chunk in self.chunks if chunk.metadata["source"] not in removed_chunks]
         kept_matrix_indices = [

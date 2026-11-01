@@ -1,6 +1,7 @@
 """Read PDF pages and split them into source-aware chunks."""
 
 import logging
+import os
 import shutil
 from pathlib import Path
 
@@ -31,7 +32,7 @@ def find_pdfs(paths: list[Path]) -> list[Path]:
     return sorted(found.values(), key=lambda p: str(p))
 
 
-def load_pages(pdf: Path, source: str, ocr: str = "auto") -> list[Document]:
+def load_pages(pdf: Path, source: str, ocr: str = "auto", ocr_language: str = "eng") -> list[Document]:
     """Extract non-empty pages from a PDF, optionally using Tesseract OCR."""
     if ocr not in {"auto", "off"}:
         raise ValueError("ocr must be 'auto' or 'off'")
@@ -43,13 +44,24 @@ def load_pages(pdf: Path, source: str, ocr: str = "auto") -> list[Document]:
             missing_ocr_logged = False
             tesseract_available = shutil.which("tesseract") is not None
             for number, page in enumerate(doc, start=1):
-                text = page.get_text(sort=True)
+                text = page.get_text()
                 if not text.strip() and ocr == "auto":
                     if tesseract_available:
-                        textpage = page.get_textpage_ocr(full=True)
-                        text = page.get_text(textpage=textpage, sort=True)
+                        tessdata = pymupdf.get_tessdata()
+                        if tessdata:
+                            os.environ.setdefault("TESSDATA_PREFIX", tessdata)
+                        textpage = page.get_textpage_ocr(language=ocr_language, full=True, dpi=300)
+                        text = page.get_text(textpage=textpage)
                     elif not missing_ocr_logged:
-                        logger.warning("Tesseract is not installed; skipping OCR for %s", pdf)
+                        language_packages = " ".join(
+                            f"tesseract-ocr-{language}" for language in ocr_language.split("+") if language
+                        )
+                        logger.warning(
+                            "Tesseract is not installed; install it with "
+                            "`sudo apt install tesseract-ocr %s` to enable OCR for %s",
+                            language_packages,
+                            pdf,
+                        )
                         missing_ocr_logged = True
                 text = " ".join(text.split())
                 if text:

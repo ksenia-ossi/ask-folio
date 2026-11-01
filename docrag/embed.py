@@ -1,7 +1,26 @@
 """Sentence-transformer embedding helpers."""
 
+import logging
+import os
+
+os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
+os.environ.setdefault("HF_HUB_VERBOSITY", "error")
+os.environ.setdefault("TRANSFORMERS_VERBOSITY", "error")
+os.environ.setdefault("TQDM_DISABLE", "1")
+
+for logger_name in (
+    "huggingface_hub",
+    "huggingface_hub.utils._headers",
+    "sentence_transformers",
+    "transformers",
+    "transformers.modeling_utils",
+):
+    logging.getLogger(logger_name).setLevel(logging.ERROR)
+
 import numpy as np
 from sentence_transformers import SentenceTransformer
+
+logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
 
 DEFAULT_EMBEDDING_MODEL = "intfloat/multilingual-e5-small"
 

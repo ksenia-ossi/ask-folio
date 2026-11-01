@@ -1,8 +1,257 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <title>DocRAG</title>
-  </head>
-  <body></body>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>docrag</title>
+<style>
+  :root {
+    --paper: #f6f3ec;
+    --ink: #1a1a1a;
+    --muted: #6b665d;
+    --rule: #d9d3c5;
+    --accent: #b3401f;
+    --card: #fbf9f4;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--paper); color: var(--ink); }
+  body { font: 16px/1.5 -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; }
+  header { border-bottom: 1px solid var(--ink); padding: 28px 40px 18px; display: flex; align-items: baseline; gap: 18px; flex-wrap: wrap; }
+  h1 { font: 600 34px/1 Georgia, "Times New Roman", serif; margin: 0; letter-spacing: -0.5px; }
+  header p { margin: 0; color: var(--muted); }
+  main { display: grid; grid-template-columns: 330px 1fr; min-height: calc(100vh - 90px); }
+  aside { border-right: 1px solid var(--rule); padding: 24px 28px; }
+  section.qa { padding: 24px 40px 60px; max-width: 900px; }
+  h2 { font: 600 13px/1 -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; text-transform: uppercase; letter-spacing: 1.2px; color: var(--muted); margin: 0 0 12px; }
+  .drop { display: block; border: 1px dashed var(--muted); padding: 22px 16px; text-align: center; cursor: pointer; background: var(--card); }
+  .drop:hover, .drop.over { border-color: var(--accent); color: var(--accent); }
+  .drop small { display: block; color: var(--muted); margin-top: 4px; }
+  .status { font-size: 14px; color: var(--muted); min-height: 21px; margin: 10px 0 18px; white-space: pre-line; }
+  .status.error { color: var(--accent); }
+  ul.docs { list-style: none; margin: 0; padding: 0; }
+  ul.docs li { display: grid; grid-template-columns: 20px 1fr auto; gap: 8px; align-items: start; padding: 9px 0; border-bottom: 1px solid var(--rule); }
+  ul.docs input { margin-top: 4px; accent-color: var(--accent); }
+  .docname { word-break: break-word; }
+  .docname a { color: var(--ink); text-decoration: none; }
+  .docname a:hover { text-decoration: underline; }
+  .meta { color: var(--muted); font-size: 13px; }
+  button.remove { border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 13px; padding: 2px 0; }
+  button.remove:hover { color: var(--accent); }
+  .empty { color: var(--muted); font-size: 14px; }
+  .scope { font-size: 13px; color: var(--muted); margin-top: 10px; }
+  form.ask { display: flex; gap: 0; border: 1px solid var(--ink); background: #fff; }
+  form.ask textarea { flex: 1; border: 0; padding: 14px 16px; font: inherit; font-size: 17px; resize: none; background: transparent; color: var(--ink); min-height: 54px; }
+  form.ask textarea:focus { outline: none; }
+  form.ask button { border: 0; border-left: 1px solid var(--ink); background: var(--ink); color: var(--paper); padding: 0 22px; font: inherit; cursor: pointer; }
+  form.ask button:disabled { background: var(--muted); cursor: default; }
+  .hint { color: var(--muted); font-size: 13px; margin: 8px 0 28px; }
+  article { border-top: 1px solid var(--rule); padding: 20px 0 6px; }
+  article .q { font: 600 20px/1.35 Georgia, "Times New Roman", serif; margin: 0 0 10px; }
+  article .a { font-size: 17px; margin: 0 0 12px; white-space: pre-wrap; }
+  article .a.notfound { color: var(--accent); }
+  article .a.pending { color: var(--muted); }
+  .cites { margin: 0 0 8px; padding: 0; list-style: none; }
+  .cites li { margin: 0 0 6px; }
+  .cites details summary { cursor: pointer; font-size: 14px; color: var(--ink); }
+  .cites details summary span { color: var(--accent); font-weight: 600; }
+  .cites blockquote { margin: 8px 0 10px 14px; padding: 0 0 0 12px; border-left: 2px solid var(--accent); color: #3a3833; font-size: 14px; }
+  .cites a { color: var(--accent); font-size: 13px; }
+  .stats { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
+  @media (max-width: 800px) {
+    main { grid-template-columns: 1fr; }
+    aside { border-right: 0; border-bottom: 1px solid var(--rule); }
+    header, section.qa { padding-left: 20px; padding-right: 20px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>docrag</h1>
+  <p>Answers taken only from your PDFs, with the page they come from.</p>
+</header>
+<main>
+  <aside>
+    <h2>Documents</h2>
+    <label class="drop" id="drop">
+      Drop PDFs here or click to choose
+      <small>Any number of files. Already indexed files are skipped.</small>
+      <input type="file" id="file" accept="application/pdf,.pdf" multiple hidden>
+    </label>
+    <div class="status" id="upload-status"></div>
+    <ul class="docs" id="docs"></ul>
+    <div class="scope" id="scope"></div>
+  </aside>
+  <section class="qa">
+    <form class="ask" id="ask">
+      <textarea id="question" rows="1" placeholder="Ask a question about your documents" required></textarea>
+      <button type="submit" id="send">Ask</button>
+    </form>
+    <div class="hint" id="hint">Enter to send, Shift+Enter for a new line. Any language.</div>
+    <div id="answers"></div>
+  </section>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+let documents = [];
+const unchecked = new Set();
+
+function el(tag, props = {}, ...children) {
+  const node = document.createElement(tag);
+  Object.assign(node, props);
+  for (const child of children) node.append(child);
+  return node;
+}
+
+function pdfUrl(name, page) {
+  return `/api/documents/${name.split("/").map(encodeURIComponent).join("/")}/pdf#page=${page}`;
+}
+
+async function api(path, options) {
+  const response = await fetch(path, options);
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.detail || `HTTP ${response.status}`);
+  return body;
+}
+
+function setStatus(text, error = false) {
+  const node = $("upload-status");
+  node.textContent = text;
+  node.className = "status" + (error ? " error" : "");
+}
+
+function renderDocs() {
+  const list = $("docs");
+  list.replaceChildren();
+  if (!documents.length) {
+    list.append(el("li", { className: "empty" }, "No documents yet."));
+  }
+  for (const doc of documents) {
+    const box = el("input", { type: "checkbox", checked: !unchecked.has(doc.name), title: "Use this document for answers" });
+    box.addEventListener("change", () => {
+      box.checked ? unchecked.delete(doc.name) : unchecked.add(doc.name);
+      renderScope();
+    });
+    const remove = el("button", { className: "remove", textContent: "remove", title: `Remove ${doc.name}` });
+    remove.addEventListener("click", () => removeDoc(doc.name));
+    const name = el("div", { className: "docname" },
+      el("a", { href: pdfUrl(doc.name, 1), target: "_blank", textContent: doc.name }),
+      el("div", { className: "meta", textContent: `${doc.pages} pages, ${doc.chunks} chunks` }));
+    list.append(el("li", {}, box, name, remove));
+  }
+  renderScope();
+}
+
+function selectedSources() {
+  if (!unchecked.size) return null;
+  return documents.filter((d) => !unchecked.has(d.name)).map((d) => d.name);
+}
+
+function renderScope() {
+  const selected = selectedSources();
+  $("scope").textContent = selected ? `Answers use ${selected.length} of ${documents.length} documents.` : "";
+}
+
+async function loadDocs() {
+  try {
+    const data = await api("/api/documents");
+    documents = data.documents;
+    for (const name of [...unchecked]) if (!documents.some((d) => d.name === name)) unchecked.delete(name);
+    renderDocs();
+    const s = data.settings;
+    $("hint").textContent = `Enter to send, Shift+Enter for a new line. Any language. ${s.model}, ${s.retriever} retrieval, top ${s.k} excerpts.`;
+  } catch (error) {
+    setStatus(error.message, true);
+  }
+}
+
+async function upload(files) {
+  const pdfs = [...files];
+  if (!pdfs.length) return;
+  const form = new FormData();
+  for (const file of pdfs) form.append("files", file);
+  setStatus(`Indexing ${pdfs.length} file${pdfs.length > 1 ? "s" : ""}... large PDFs can take a while.`);
+  $("drop").style.pointerEvents = "none";
+  try {
+    const r = await api("/api/documents", { method: "POST", body: form });
+    documents = r.documents;
+    renderDocs();
+    const lines = [];
+    if (r.added.length) lines.push(`Added: ${r.added.join(", ")}`);
+    if (r.updated.length) lines.push(`Updated: ${r.updated.join(", ")}`);
+    if (r.unchanged.length) lines.push(`Already indexed: ${r.unchanged.join(", ")}`);
+    for (const s of r.skipped) lines.push(`Skipped ${s.name}: ${s.reason}`);
+    setStatus(lines.join("\n"), r.skipped.length > 0 && !r.added.length && !r.updated.length);
+  } catch (error) {
+    setStatus(error.message, true);
+  } finally {
+    $("drop").style.pointerEvents = "";
+    $("file").value = "";
+  }
+}
+
+async function removeDoc(name) {
+  if (!confirm(`Remove ${name} from the index?`)) return;
+  try {
+    const r = await api(`/api/documents/${name.split("/").map(encodeURIComponent).join("/")}`, { method: "DELETE" });
+    documents = r.documents;
+    unchecked.delete(name);
+    renderDocs();
+    setStatus(`Removed ${name}.`);
+  } catch (error) {
+    setStatus(error.message, true);
+  }
+}
+
+function renderAnswer(card, r) {
+  const answer = el("p", { className: "a" + (r.found ? "" : " notfound"), textContent: r.answer });
+  const cites = el("ul", { className: "cites" });
+  for (const s of r.sources) {
+    cites.append(el("li", {},
+      el("details", {},
+        el("summary", {}, el("span", { textContent: s.source }), ` page ${s.page}`),
+        el("blockquote", { textContent: s.text }),
+        el("a", { href: pdfUrl(s.source, s.page), target: "_blank", textContent: `Open ${s.source} at page ${s.page}` }))));
+  }
+  const stats = el("div", { className: "stats", textContent: `${r.latency_s} s, ${r.input_tokens} input / ${r.output_tokens} output tokens` });
+  card.querySelector(".a").replaceWith(answer);
+  card.append(cites, stats);
+}
+
+async function ask(event) {
+  event.preventDefault();
+  const question = $("question").value.trim();
+  if (!question) return;
+  const card = el("article", {}, el("p", { className: "q", textContent: question }), el("p", { className: "a pending", textContent: "Searching the documents..." }));
+  $("answers").prepend(card);
+  $("question").value = "";
+  $("send").disabled = true;
+  try {
+    const r = await api("/api/ask", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question, sources: selectedSources() }),
+    });
+    renderAnswer(card, r);
+  } catch (error) {
+    const node = card.querySelector(".a");
+    node.className = "a notfound";
+    node.textContent = `Error: ${error.message}`;
+  } finally {
+    $("send").disabled = false;
+    $("question").focus();
+  }
+}
+
+const drop = $("drop");
+$("file").addEventListener("change", (e) => upload(e.target.files));
+drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("over"); });
+drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+drop.addEventListener("drop", (e) => { e.preventDefault(); drop.classList.remove("over"); upload(e.dataTransfer.files); });
+$("ask").addEventListener("submit", ask);
+$("question").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("ask").requestSubmit(); }
+});
+loadDocs();
+</script>
+</body>
 </html>

@@ -38,31 +38,63 @@ def create_app(
 ) -> FastAPI:
     """Build an API app without loading models until they are needed."""
     index_dir = Path(index_dir)
-    index_lock = threading.Lock()
-    state = {"index": None, "embedder": None, "llm": None}
+    index_lock = threading.RLock()
+    state = {"index": None, "manifest_mtime": None, "embedder": None, "llm": None, "retriever": None}
     app = FastAPI()
+    manifest_path = index_dir / "manifest.json"
 
-    def get_index() -> Index:
-        if state["index"] is None:
-            if state["embedder"] is None:
-                if embedder_factory is Embedder:
-                    state["embedder"] = Embedder(manifest()["embedding_model"])
-                else:
-                    state["embedder"] = embedder_factory()
-            state["index"] = Index.open(index_dir, embedder=state["embedder"])
-        return state["index"]
+    def manifest_mtime() -> int | None:
+        try:
+            return manifest_path.stat().st_mtime_ns
+        except FileNotFoundError:
+            return None
 
-    def manifest() -> dict:
-        path = index_dir / "manifest.json"
+    def read_manifest() -> dict:
         return (
-            json.loads(path.read_text(encoding="utf-8"))
-            if path.exists()
+            json.loads(manifest_path.read_text(encoding="utf-8"))
+            if manifest_path.exists()
             else {
                 "embedding_model": DEFAULT_EMBEDDING_MODEL,
                 "chunk_size": DEFAULT_CHUNK_SIZE,
                 "documents": {},
             }
         )
+
+    def get_index() -> Index:
+        with index_lock:
+            observed_mtime = manifest_mtime()
+            if state["index"] is not None and state["manifest_mtime"] == observed_mtime:
+                return state["index"]
+            while True:
+                observed_mtime = manifest_mtime()
+                data = read_manifest()
+                if observed_mtime != manifest_mtime():
+                    continue
+                model_name = data["embedding_model"]
+                if state["embedder"] is None or getattr(state["embedder"], "name", None) != model_name:
+                    state["embedder"] = Embedder(model_name) if embedder_factory is Embedder else embedder_factory()
+                try:
+                    index = Index.open(index_dir, embedder=state["embedder"])
+                except ValueError:
+                    if observed_mtime != manifest_mtime():
+                        continue
+                    raise
+                if observed_mtime != manifest_mtime():
+                    continue
+                state["index"] = index
+                state["manifest_mtime"] = observed_mtime
+                state["retriever"] = None
+                return index
+
+    def manifest() -> dict:
+        with index_lock:
+            if state["index"] is not None and state["manifest_mtime"] != manifest_mtime():
+                get_index()
+            return read_manifest()
+
+    def mark_index_changed() -> None:
+        state["manifest_mtime"] = manifest_mtime()
+        state["retriever"] = None
 
     def document_list() -> list[dict]:
         return [
@@ -71,12 +103,12 @@ def create_app(
         ]
 
     @app.get("/", response_class=HTMLResponse)
-    async def home():
+    def home():
         page = Path(__file__).parent / "web" / "index.html"
         return HTMLResponse(page.read_text(encoding="utf-8"))
 
     @app.get("/api/documents")
-    async def list_documents():
+    def list_documents():
         data = manifest()
         return {
             "documents": [
@@ -94,10 +126,11 @@ def create_app(
         }
 
     @app.post("/api/documents")
-    async def upload_documents(files: list[UploadFile] = UPLOAD_FILES):
+    def upload_documents(files: list[UploadFile] = UPLOAD_FILES):
         upload_dir = index_dir / "files"
         upload_dir.mkdir(parents=True, exist_ok=True)
         paths = []
+        newly_written = {}
         skipped = []
         for upload in files:
             original = (upload.filename or "upload.pdf").replace("\\", "/").split("/")[-1]
@@ -105,7 +138,7 @@ def create_app(
             if Path(filename).suffix.lower() != ".pdf":
                 skipped.append({"name": filename, "reason": "not a PDF file"})
                 continue
-            content = await upload.read()
+            content = upload.file.read()
             target = upload_dir / filename
             digest = hashlib.sha256(content).digest()
             suffix = target.suffix
@@ -116,16 +149,23 @@ def create_app(
                 target = upload_dir / f"{stem}-{number}{suffix}"
             if not target.exists():
                 target.write_bytes(content)
+                newly_written[target.name] = target
             paths.append(target)
         report = {"added": [], "updated": [], "unchanged": [], "skipped": skipped}
         if paths:
             try:
                 with index_lock:
                     result = get_index().add(paths)
+                    if result.added or result.updated:
+                        mark_index_changed()
                 report["added"] = result.added
                 report["updated"] = result.updated
                 report["unchanged"] = result.unchanged
                 report["skipped"].extend({"name": name, "reason": reason} for name, reason in result.skipped)
+                for name, _ in result.skipped:
+                    path = newly_written.get(Path(name).name)
+                    if path is not None:
+                        path.unlink(missing_ok=True)
             except (FileNotFoundError, ValueError) as exc:
                 raise HTTPException(status_code=400, detail=str(exc)) from exc
             except Exception as exc:
@@ -134,7 +174,7 @@ def create_app(
         return report
 
     @app.delete("/api/documents/{name:path}")
-    async def delete_document(name: str):
+    def delete_document(name: str):
         data = manifest()
         if name not in data["documents"]:
             raise HTTPException(status_code=404, detail="Document not found")
@@ -143,6 +183,7 @@ def create_app(
             with index_lock:
                 index = get_index()
                 index.remove([name])
+                mark_index_changed()
             resolved = file_path.resolve()
             files_root = (index_dir / "files").resolve()
             if resolved.is_relative_to(files_root) and resolved.is_file():
@@ -154,7 +195,7 @@ def create_app(
         return {"documents": document_list()}
 
     @app.get("/api/documents/{name:path}/pdf")
-    async def get_pdf(name: str):
+    def get_pdf(name: str):
         data = manifest()
         row = data["documents"].get(name)
         if row is None:
@@ -165,19 +206,23 @@ def create_app(
         return FileResponse(path, media_type="application/pdf")
 
     @app.post("/api/ask")
-    async def ask(request: AskRequest):
+    def ask(request: AskRequest):
         if not request.question.strip():
             raise HTTPException(status_code=400, detail="Question cannot be empty")
         if not manifest()["documents"]:
             raise HTTPException(status_code=400, detail="No documents indexed yet")
         try:
-            index = get_index()
-            if not index.chunks:
-                raise HTTPException(status_code=400, detail="No documents indexed yet")
-            if state["llm"] is None:
-                state["llm"] = llm_factory(provider=provider, model=model, base_url=base_url)
-            search = Retriever(index.chunks, index.matrix, index.embedder, mode=retriever)
-            result = Assistant(search, state["llm"], k=k, log=index_dir / "queries.jsonl").ask(
+            with index_lock:
+                index = get_index()
+                if not index.chunks:
+                    raise HTTPException(status_code=400, detail="No documents indexed yet")
+                if state["retriever"] is None:
+                    state["retriever"] = Retriever(index.chunks, index.matrix, index.embedder, mode=retriever)
+                if state["llm"] is None:
+                    state["llm"] = llm_factory(provider=provider, model=model, base_url=base_url)
+                search = state["retriever"]
+                llm = state["llm"]
+            result = Assistant(search, llm, k=k, log=index_dir / "queries.jsonl").ask(
                 request.question,
                 sources=request.sources,
             )

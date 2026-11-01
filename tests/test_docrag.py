@@ -84,6 +84,43 @@ def test_load_pages_warns_once_when_tesseract_is_missing(pdf, monkeypatch, caplo
     assert len(warnings) == 1
 
 
+def test_load_pages_passes_ocr_language_and_resolves_tessdata(tmp_path, monkeypatch):
+    from docrag import ingest
+
+    calls = []
+
+    class Page:
+        def get_text(self, textpage=None):
+            return "Texte français" if textpage is not None else ""
+
+        def get_textpage_ocr(self, language, full, dpi):
+            calls.append((language, full, dpi))
+            return object()
+
+    class Pdf:
+        is_encrypted = False
+        page_count = 1
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def __iter__(self):
+            return iter([Page()])
+
+    monkeypatch.setattr(ingest.pymupdf, "open", lambda path: Pdf())
+    monkeypatch.setattr(ingest.pymupdf, "get_tessdata", lambda: "/tessdata")
+    monkeypatch.setattr(ingest.shutil, "which", lambda name: "/usr/bin/tesseract")
+    monkeypatch.setattr(ingest.os, "environ", dict(ingest.os.environ))
+    ingest.os.environ.pop("TESSDATA_PREFIX", None)
+    pages = load_pages(tmp_path / "scan.pdf", "scan.pdf", ocr_language="fra")
+    assert pages[0].page_content == "Texte français"
+    assert calls == [("fra", True, 300)]
+    assert ingest.os.environ["TESSDATA_PREFIX"] == "/tessdata"
+
+
 def test_index_skips_pdf_with_no_extractable_text(tmp_path):
     blank = make_pdf(tmp_path / "blank.pdf", [""])
     index = Index.open(tmp_path / "index", FakeEmbedder())
@@ -134,6 +171,29 @@ def test_index_persists_incrementally_updates_removes_and_validates(tmp_path, pd
     assert reopened.remove(["report.pdf"]) == ["report.pdf"]
     assert reopened.documents() == []
     assert reopened.chunks == []
+
+
+def test_index_progress_reports_each_file_status(tmp_path):
+    first = make_pdf(tmp_path / "a.pdf", ["original text"])
+    second = make_pdf(tmp_path / "b.pdf", ["original contents"])
+    blank = make_pdf(tmp_path / "c.pdf", [""])
+    index = Index.open(tmp_path / "index", FakeEmbedder())
+    index.add([first, second], ocr="off")
+    make_pdf(second, ["updated contents"])
+    events = []
+    report = index.add(
+        [first, second, blank],
+        ocr="off",
+        progress=lambda *event: events.append(event),
+    )
+    assert report.unchanged == ["a.pdf"]
+    assert report.updated == ["b.pdf"]
+    assert report.skipped == [("c.pdf", "no extractable text")]
+    assert events == [
+        (1, 3, "a.pdf", "unchanged"),
+        (2, 3, "b.pdf", "updated"),
+        (3, 3, "c.pdf", "skipped"),
+    ]
 
 
 def test_duplicate_basenames_get_disambiguated_names(tmp_path):
@@ -313,11 +373,93 @@ def test_server_upload_list_ask_delete_pdf_and_empty_index(tmp_path):
     assert client.delete("/api/documents/first.pdf").status_code == 404
 
 
+def test_server_reloads_index_after_manifest_changes(tmp_path):
+    from docrag.server import create_app
+
+    index_dir = tmp_path / "index"
+    first = make_pdf(tmp_path / "first.pdf", ["Original indexed text."])
+    second = make_pdf(tmp_path / "second.pdf", ["New external indexed text."])
+    Index.open(index_dir, FakeEmbedder()).add([first], ocr="off")
+    llm = FakeLLM(Answer(found=True, answer="The answer.", citations=[1]))
+    client = TestClient(create_app(index_dir, embedder_factory=FakeEmbedder, llm_factory=lambda **kwargs: llm))
+    assert client.post("/api/ask", json={"question": "original"}).status_code == 200
+
+    Index.open(index_dir, FakeEmbedder()).add([second], ocr="off")
+    response = client.post("/api/ask", json={"question": "external", "sources": ["second.pdf"]})
+    assert response.status_code == 200
+    assert response.json()["sources"][0]["source"] == "second.pdf"
+
+
+def test_server_removes_new_upload_when_index_skips_it(tmp_path):
+    from docrag.server import create_app
+
+    index_dir = tmp_path / "index"
+    llm = FakeLLM(Answer(found=False, answer=NOT_FOUND, citations=[]))
+    client = TestClient(create_app(index_dir, embedder_factory=FakeEmbedder, llm_factory=lambda **kwargs: llm))
+    response = client.post(
+        "/api/documents",
+        files=[("files", ("broken.pdf", b"not a PDF", "application/pdf"))],
+    )
+    assert response.status_code == 200
+    assert response.json()["skipped"][0]["name"] == "broken.pdf"
+    assert not (index_dir / "files" / "broken.pdf").exists()
+
+
 def test_cli_ingest_and_list_with_fake_embedder(tmp_path, pdf, monkeypatch, capsys):
     from docrag import cli
 
     monkeypatch.setattr(cli, "Embedder", lambda *args, **kwargs: FakeEmbedder())
     cli.main(["--index", str(tmp_path / "index"), "ingest", str(pdf), "--ocr", "off"])
-    assert "added=1" in capsys.readouterr().out
+    captured = capsys.readouterr()
+    assert "added=1" in captured.out
+    assert "[1/1] report.pdf: added" in captured.err
     cli.main(["--index", str(tmp_path / "index"), "list"])
     assert "report.pdf" in capsys.readouterr().out
+
+
+def test_cli_ask_paths_reports_ingest_progress(tmp_path, monkeypatch, capsys):
+    from docrag import cli
+
+    pdf = make_pdf(tmp_path / "report.pdf", ["report text"])
+    monkeypatch.setattr(cli, "Embedder", lambda *args, **kwargs: FakeEmbedder())
+    monkeypatch.setattr(
+        cli,
+        "make_llm",
+        lambda *args, **kwargs: FakeLLM(Answer(found=False, answer=NOT_FOUND, citations=[])),
+    )
+    cli.main(
+        [
+            "--index",
+            str(tmp_path / "index"),
+            "ask",
+            "question",
+            str(pdf),
+            "--ocr-language",
+            "fra",
+        ]
+    )
+    assert "[1/1] report.pdf: added" in capsys.readouterr().err
+
+
+def test_cli_empty_operations_error_without_creating_list_index(tmp_path, monkeypatch, capsys):
+    from docrag import cli
+
+    index_dir = tmp_path / "missing"
+    cli.main(["--index", str(index_dir), "list"])
+    assert capsys.readouterr().out == "No documents indexed.\n"
+    assert not index_dir.exists()
+
+    monkeypatch.setattr(cli, "Embedder", lambda *args, **kwargs: FakeEmbedder())
+    monkeypatch.setattr(cli, "make_llm", lambda **kwargs: pytest.fail("LLM must not be created"))
+    questions = tmp_path / "questions.jsonl"
+    questions.write_text("")
+    commands = [
+        ["ask", "question"],
+        ["chat"],
+        ["eval", "--questions", str(questions)],
+    ]
+    for command in commands:
+        with pytest.raises(SystemExit) as error:
+            cli.main(["--index", str(index_dir), *command])
+        assert error.value.code == 1
+        assert capsys.readouterr().err == "docrag: error: No documents indexed yet. Run `docrag ingest PATH`.\n"

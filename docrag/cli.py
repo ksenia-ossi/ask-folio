@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+import sys
 from pathlib import Path
 
 from docrag.answer import Assistant
@@ -12,6 +13,8 @@ from docrag.index import Index
 from docrag.ingest import load_pages, split
 from docrag.llm import make_llm
 from docrag.retrieve import Retriever
+
+NO_DOCUMENTS_ERROR = "No documents indexed yet. Run `docrag ingest PATH`."
 
 
 class StoredEmbedder:
@@ -51,6 +54,10 @@ def print_report(report):
     )
 
 
+def print_progress(position, total, name, status):
+    print(f"[{position}/{total}] {name}: {status}", file=sys.stderr)
+
+
 def report_add(args):
     directory = index_dir_from(args)
     manifest_path = directory / "manifest.json"
@@ -68,11 +75,20 @@ def report_add(args):
         chunk_size=args.chunk_size,
         overlap=args.overlap,
     )
-    report = index.add(args.paths, ocr=args.ocr, rebuild=args.rebuild)
+    report = index.add(
+        args.paths,
+        ocr=args.ocr,
+        rebuild=args.rebuild,
+        progress=print_progress,
+        ocr_language=args.ocr_language,
+    )
     print_report(report)
 
 
 def command_list(args):
+    if not (index_dir_from(args) / "manifest.json").exists():
+        print("No documents indexed.")
+        return
     args.no_model = True
     index = open_index(args)
     for row in index.documents():
@@ -93,6 +109,11 @@ def make_assistant(args, index=None):
     search = Retriever(index.chunks, index.matrix, index.embedder, mode=args.retriever)
     llm = make_llm(args.provider, args.model, args.base_url)
     return Assistant(search, llm, k=args.k, log=index_dir_from(args) / "queries.jsonl")
+
+
+def require_chunks(index):
+    if not index.chunks:
+        raise RuntimeError(NO_DOCUMENTS_ERROR)
 
 
 def show_result(result, as_json=False):
@@ -121,7 +142,8 @@ def show_result(result, as_json=False):
 def command_ask(args):
     index = open_index(args)
     if args.paths:
-        print_report(index.add(args.paths))
+        print_report(index.add(args.paths, progress=print_progress, ocr_language=args.ocr_language))
+    require_chunks(index)
     result = make_assistant(args, index).ask(args.question, _sources(args.source))
     show_result(result, args.json)
 
@@ -131,7 +153,9 @@ def _sources(values):
 
 
 def command_chat(args):
-    assistant = make_assistant(args)
+    index = open_index(args)
+    require_chunks(index)
+    assistant = make_assistant(args, index)
     print("Ask a question. Press Ctrl-D or enter an empty line to quit.")
     while True:
         try:
@@ -153,6 +177,7 @@ def indexed_pages(index):
 
 def command_eval(args):
     index = open_index(args)
+    require_chunks(index)
     assistant = make_assistant(args, index)
     page_text = {
         (page.metadata["source"], page.metadata["page"]): normalize(page.page_content) for page in indexed_pages(index)
@@ -237,6 +262,7 @@ def build_parser():
     ingest.add_argument("--overlap", type=int)
     ingest.add_argument("--embedding-model")
     ingest.add_argument("--ocr", choices=("auto", "off"), default="auto")
+    ingest.add_argument("--ocr-language", default="eng")
     ingest.add_argument("--rebuild", action="store_true")
     ingest.set_defaults(func=report_add)
 
@@ -248,6 +274,7 @@ def build_parser():
     ask = commands.add_parser("ask")
     ask.add_argument("question")
     ask.add_argument("paths", type=Path, nargs="*")
+    ask.add_argument("--ocr-language", default="eng")
     add_answer_options(ask)
     ask.add_argument("--json", action="store_true")
     ask.set_defaults(func=command_ask)
@@ -276,10 +303,14 @@ def build_parser():
 
 
 def main(argv=None):
-    args = build_parser().parse_args(argv)
-    if hasattr(args, "k") and args.k < 1:
-        raise SystemExit("--k must be positive")
-    args.func(args)
+    try:
+        args = build_parser().parse_args(argv)
+        if hasattr(args, "k") and args.k < 1:
+            raise SystemExit("--k must be positive")
+        args.func(args)
+    except (FileNotFoundError, ValueError, RuntimeError, KeyError) as exc:
+        print(f"docrag: error: {exc}", file=sys.stderr)
+        raise SystemExit(1) from None
 
 
 if __name__ == "__main__":
