@@ -1,4 +1,4 @@
-"""Command-line interface for the DocRAG index."""
+"""Command-line interface for the askfolio index."""
 
 import argparse
 import json
@@ -6,15 +6,15 @@ import os
 import sys
 from pathlib import Path
 
-from docrag.answer import Assistant
-from docrag.embed import DEFAULT_EMBEDDING_MODEL, Embedder
-from docrag.evaluate import load_questions, normalize, retrieval_hit_rate, score, summarize
-from docrag.index import Index
-from docrag.ingest import load_pages, split
-from docrag.llm import make_llm
-from docrag.retrieve import Retriever
+from askfolio.answer import Assistant
+from askfolio.embed import DEFAULT_EMBEDDING_MODEL, Embedder
+from askfolio.evaluate import load_questions, normalize, retrieval_hit_rate, score, summarize
+from askfolio.index import Index
+from askfolio.ingest import load_pages, split
+from askfolio.llm import make_llm
+from askfolio.retrieve import Retriever
 
-NO_DOCUMENTS_ERROR = "No documents indexed yet. Run `docrag ingest PATH`."
+NO_DOCUMENTS_ERROR = "No documents indexed yet. Run `askfolio ingest PATH`."
 
 
 class StoredEmbedder:
@@ -226,7 +226,7 @@ def command_sweep(args):
 def command_serve(args):
     import uvicorn
 
-    from docrag.server import create_app
+    from askfolio.server import create_app
 
     uvicorn.run(
         create_app(
@@ -252,8 +252,8 @@ def add_answer_options(parser):
 
 
 def build_parser():
-    parser = argparse.ArgumentParser(prog="docrag")
-    parser.add_argument("--index", type=Path, default=Path(os.environ.get("DOCRAG_INDEX", ".docrag")))
+    parser = argparse.ArgumentParser(prog="askfolio")
+    parser.add_argument("--index", type=Path, default=Path(os.environ.get("ASKFOLIO_INDEX", ".askfolio")))
     commands = parser.add_subparsers(dest="command", required=True)
 
     ingest = commands.add_parser("ingest")
@@ -309,7 +309,7 @@ def main(argv=None):
             raise SystemExit("--k must be positive")
         args.func(args)
     except (FileNotFoundError, ValueError, RuntimeError, KeyError) as exc:
-        print(f"docrag: error: {exc}", file=sys.stderr)
+        print(f"askfolio: error: {exc}", file=sys.stderr)
         raise SystemExit(1) from None
 
 

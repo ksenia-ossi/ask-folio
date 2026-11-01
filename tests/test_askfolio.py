@@ -8,11 +8,11 @@ from fastapi.testclient import TestClient
 from langchain_core.documents import Document
 from langchain_core.messages import AIMessage
 
-from docrag.answer import NOT_FOUND, Answer, Assistant
-from docrag.evaluate import is_correct, normalize, page_hit, score, summarize, supported
-from docrag.index import Index
-from docrag.ingest import find_pdfs, load_pages, split
-from docrag.retrieve import Retriever, reciprocal_rank_fusion, tokenize
+from askfolio.answer import NOT_FOUND, Answer, Assistant
+from askfolio.evaluate import is_correct, normalize, page_hit, score, summarize, supported
+from askfolio.index import Index
+from askfolio.ingest import find_pdfs, load_pages, split
+from askfolio.retrieve import Retriever, reciprocal_rank_fusion, tokenize
 
 
 class FakeEmbedder:
@@ -75,7 +75,7 @@ def test_load_pages_preserves_nonempty_page_numbers(pdf):
 
 
 def test_load_pages_warns_once_when_tesseract_is_missing(pdf, monkeypatch, caplog):
-    from docrag import ingest
+    from askfolio import ingest
 
     monkeypatch.setattr(ingest.shutil, "which", lambda name: None)
     pages = load_pages(pdf, "report.pdf")
@@ -85,7 +85,7 @@ def test_load_pages_warns_once_when_tesseract_is_missing(pdf, monkeypatch, caplo
 
 
 def test_load_pages_passes_ocr_language_and_resolves_tessdata(tmp_path, monkeypatch):
-    from docrag import ingest
+    from askfolio import ingest
 
     calls = []
 
@@ -332,7 +332,7 @@ def test_evaluation_metrics():
 
 
 def test_server_upload_list_ask_delete_pdf_and_empty_index(tmp_path):
-    from docrag.server import create_app
+    from askfolio.server import create_app
 
     llm = FakeLLM(Answer(found=True, answer="The result is 42.", citations=[1]))
     app = create_app(
@@ -374,7 +374,7 @@ def test_server_upload_list_ask_delete_pdf_and_empty_index(tmp_path):
 
 
 def test_server_reloads_index_after_manifest_changes(tmp_path):
-    from docrag.server import create_app
+    from askfolio.server import create_app
 
     index_dir = tmp_path / "index"
     first = make_pdf(tmp_path / "first.pdf", ["Original indexed text."])
@@ -391,7 +391,7 @@ def test_server_reloads_index_after_manifest_changes(tmp_path):
 
 
 def test_server_removes_new_upload_when_index_skips_it(tmp_path):
-    from docrag.server import create_app
+    from askfolio.server import create_app
 
     index_dir = tmp_path / "index"
     llm = FakeLLM(Answer(found=False, answer=NOT_FOUND, citations=[]))
@@ -406,7 +406,7 @@ def test_server_removes_new_upload_when_index_skips_it(tmp_path):
 
 
 def test_cli_ingest_and_list_with_fake_embedder(tmp_path, pdf, monkeypatch, capsys):
-    from docrag import cli
+    from askfolio import cli
 
     monkeypatch.setattr(cli, "Embedder", lambda *args, **kwargs: FakeEmbedder())
     cli.main(["--index", str(tmp_path / "index"), "ingest", str(pdf), "--ocr", "off"])
@@ -418,7 +418,7 @@ def test_cli_ingest_and_list_with_fake_embedder(tmp_path, pdf, monkeypatch, caps
 
 
 def test_cli_ask_paths_reports_ingest_progress(tmp_path, monkeypatch, capsys):
-    from docrag import cli
+    from askfolio import cli
 
     pdf = make_pdf(tmp_path / "report.pdf", ["report text"])
     monkeypatch.setattr(cli, "Embedder", lambda *args, **kwargs: FakeEmbedder())
@@ -442,7 +442,7 @@ def test_cli_ask_paths_reports_ingest_progress(tmp_path, monkeypatch, capsys):
 
 
 def test_cli_empty_operations_error_without_creating_list_index(tmp_path, monkeypatch, capsys):
-    from docrag import cli
+    from askfolio import cli
 
     index_dir = tmp_path / "missing"
     cli.main(["--index", str(index_dir), "list"])
@@ -462,4 +462,13 @@ def test_cli_empty_operations_error_without_creating_list_index(tmp_path, monkey
         with pytest.raises(SystemExit) as error:
             cli.main(["--index", str(index_dir), *command])
         assert error.value.code == 1
-        assert capsys.readouterr().err == "docrag: error: No documents indexed yet. Run `docrag ingest PATH`.\n"
+        assert capsys.readouterr().err == "askfolio: error: No documents indexed yet. Run `askfolio ingest PATH`.\n"
+
+
+def test_cli_uses_askfolio_index_environment(tmp_path, monkeypatch):
+    from askfolio import cli
+
+    index_dir = tmp_path / "environment-index"
+    monkeypatch.setenv("ASKFOLIO_INDEX", str(index_dir))
+    args = cli.build_parser().parse_args(["list"])
+    assert args.index == index_dir

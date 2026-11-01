@@ -3,7 +3,7 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "docrag"
+name = "askfolio"
 version = "0.1.0"
 description = "Persistent PDF retrieval and question answering"
 requires-python = ">=3.11"
@@ -25,13 +25,13 @@ openai = ["langchain-openai>=0.2"]
 dev = ["pytest>=8", "ruff>=0.6", "httpx>=0.27"]
 
 [project.scripts]
-docrag = "docrag.cli:main"
+askfolio = "askfolio.cli:main"
 
 [tool.setuptools]
-packages = ["docrag"]
+packages = ["askfolio"]
 
 [tool.setuptools.package-data]
-docrag = ["web/*"]
+askfolio = ["web/*"]
 
 [tool.ruff]
 line-length = 120

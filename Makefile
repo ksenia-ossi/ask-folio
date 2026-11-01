@@ -12,6 +12,6 @@ test:
 	$(PY) -m pytest -q
 
 serve:
-	$(PY) -m docrag serve
+	$(PY) -m askfolio serve
 
 .PHONY: install lint test serve

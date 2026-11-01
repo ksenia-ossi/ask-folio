@@ -10,11 +10,11 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel
 
-from docrag.answer import Assistant
-from docrag.embed import DEFAULT_EMBEDDING_MODEL, Embedder
-from docrag.index import DEFAULT_CHUNK_SIZE, Index
-from docrag.llm import make_llm
-from docrag.retrieve import Retriever
+from askfolio.answer import Assistant
+from askfolio.embed import DEFAULT_EMBEDDING_MODEL, Embedder
+from askfolio.index import DEFAULT_CHUNK_SIZE, Index
+from askfolio.llm import make_llm
+from askfolio.retrieve import Retriever
 
 UPLOAD_FILES = File(...)
 

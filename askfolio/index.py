@@ -11,8 +11,8 @@ import numpy as np
 import pymupdf
 from langchain_core.documents import Document
 
-from docrag.embed import DEFAULT_EMBEDDING_MODEL, Embedder
-from docrag.ingest import find_pdfs, load_pages, split
+from askfolio.embed import DEFAULT_EMBEDDING_MODEL, Embedder
+from askfolio.ingest import find_pdfs, load_pages, split
 
 DEFAULT_CHUNK_SIZE = 400
 

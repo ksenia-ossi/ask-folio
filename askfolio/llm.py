@@ -17,7 +17,7 @@ def make_llm(provider: str = "anthropic", model: str | None = None, base_url: st
             from langchain_openai import ChatOpenAI
         except ImportError as exc:
             raise RuntimeError(
-                'OpenAI-compatible support is optional; install with `pip install "docrag[openai]"`'
+                'OpenAI-compatible support is optional; install with `pip install "askfolio[openai]"`'
             ) from exc
         local_endpoint = bool(base_url) and urlparse(base_url).hostname in {"localhost", "127.0.0.1", "::1"}
         api_key = os.environ.get("OPENAI_API_KEY")
