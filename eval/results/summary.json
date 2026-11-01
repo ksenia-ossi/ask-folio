@@ -1,0 +1,20 @@
+{
+  "model": null,
+  "provider": "anthropic",
+  "retriever": "hybrid",
+  "chunk_size": 400,
+  "k": 5,
+  "questions": 34,
+  "answerable": 28,
+  "unanswerable": 6,
+  "answer_accuracy": 0.75,
+  "citation_accuracy": 0.893,
+  "retrieval_hit_rate": 0.75,
+  "false_refusals": 3,
+  "correct_refusals": 6,
+  "hallucinated_answers": 0,
+  "latency_median_s": 0.94,
+  "latency_max_s": 2.73,
+  "input_tokens_mean": 1497,
+  "output_tokens_mean": 107
+}

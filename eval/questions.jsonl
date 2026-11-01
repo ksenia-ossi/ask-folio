@@ -1,0 +1,34 @@
+{"id": "iar-01", "source": "IAR25.pdf", "pages": [110], "answerable": true, "question": "What were Pernod Ricard's net sales in FY25?", "expect": ["10959", "10.96bn", "10.959"]}
+{"id": "iar-02", "source": "IAR25.pdf", "pages": [110], "answerable": true, "question": "What was Pernod Ricard's profit from recurring operations in FY25?", "expect": ["2951", "2.951", "2.95bn"]}
+{"id": "iar-03", "source": "IAR25.pdf", "pages": [110], "answerable": true, "question": "What was the net profit (Group share) in FY25?", "expect": ["1626", "1.626", "1.63bn"]}
+{"id": "iar-04", "source": "IAR25.pdf", "pages": [110], "answerable": true, "question": "What were FY25 net sales in the Americas region?", "expect": ["3154", "3.154"]}
+{"id": "iar-05", "source": "IAR25.pdf", "pages": [110], "answerable": true, "question": "What were FY25 net sales in Asia and the Rest of the World?", "expect": ["4635", "4.635"]}
+{"id": "iar-06", "source": "IAR25.pdf", "pages": [110], "answerable": true, "question": "What were FY25 net sales in Europe?", "expect": ["3170", "3.170", "3.17bn"]}
+{"id": "iar-07", "source": "IAR25.pdf", "pages": [110], "answerable": true, "question": "How many Pernod Ricard brands are in the Top 100 International Premium+ Spirits brands?", "expect": ["16"]}
+{"id": "iar-08", "source": "IAR25.pdf", "pages": [10, 110], "answerable": true, "question": "How many brands are in Pernod Ricard's portfolio?", "expect": ["200"]}
+{"id": "iar-09", "source": "IAR25.pdf", "pages": [10], "answerable": true, "question": "In which year was Pernod Ricard founded?", "expect": ["1975"]}
+{"id": "iar-10", "source": "IAR25.pdf", "pages": [80], "answerable": true, "question": "How many employees does Pernod Ricard have worldwide?", "expect": ["18200"]}
+{"id": "iar-11", "source": "IAR25.pdf", "pages": [28], "answerable": true, "question": "What net sales growth did Malibu achieve in the UK from FY22 to FY25 thanks to Maestria insights?", "expect": ["29%"]}
+{"id": "iar-12", "source": "IAR25.pdf", "pages": [28], "answerable": true, "question": "By how much did return on spend increase for Lillet in Germany in FY24 thanks to Matrix?", "expect": ["5%"]}
+{"id": "iar-13", "source": "IAR25.pdf", "pages": [29], "answerable": true, "question": "How much net sales did D-Star insights generate for Royal Stag in India in H1 FY25?", "expect": ["3.9million", "3.9m"]}
+{"id": "iar-14", "source": "IAR25.pdf", "pages": [29], "answerable": true, "question": "With Vista Rev-Up, how much revenue did every 1 euro spent on promotion generate in H1 FY25?", "expect": ["1.50", "1.5euro"]}
+{"id": "iar-15", "source": "IAR25.pdf", "pages": [29], "answerable": true, "question": "In which year was the Pernod Ricard Data Portal originally developed?", "expect": ["2015"]}
+{"id": "iar-16", "source": "IAR25.pdf", "pages": [28], "answerable": true, "question": "What is the name of Pernod Ricard's in-house marketing performance programme?", "expect": ["matrix"]}
+{"id": "iar-17", "source": "IAR25.pdf", "pages": [8, 11, 13, 21, 90, 92, 93, 94], "answerable": true, "question": "Who is the Chairman and CEO of Pernod Ricard?", "expect": ["alexandrericard"]}
+{"id": "iar-18", "source": "IAR25.pdf", "pages": [10], "answerable": true, "question": "Who founded Pernod Ricard?", "expect": ["paulricard"]}
+{"id": "fy26-01", "source": "FY26.pdf", "pages": [5, 54, 55, 56], "answerable": true, "question": "What were Pernod Ricard's net sales in FY26?", "expect": ["9404", "9.404", "9.4bn"]}
+{"id": "fy26-02", "source": "FY26.pdf", "pages": [4, 5], "answerable": true, "question": "What was the organic net sales growth in FY26?", "expect": ["-3.9%", "3.9%"]}
+{"id": "fy26-03", "source": "FY26.pdf", "pages": [5, 15, 16, 18, 55, 56], "answerable": true, "question": "What was the profit from recurring operations in FY26?", "expect": ["2423", "2.423", "2.42bn"]}
+{"id": "fy26-04", "source": "FY26.pdf", "pages": [4, 5], "answerable": true, "question": "What was Pernod Ricard's free cash flow in FY26?", "expect": ["1197", "1.197", "1.2bn"]}
+{"id": "fy26-05", "source": "FY26.pdf", "pages": [3], "answerable": true, "question": "What final dividend per share is proposed for FY26?", "expect": ["2.35"]}
+{"id": "fy26-06", "source": "FY26.pdf", "pages": [5, 19], "answerable": true, "question": "What was the net debt to EBITDA ratio at the end of FY26?", "expect": ["3.7"]}
+{"id": "fy26-07", "source": "FY26.pdf", "pages": [3], "answerable": true, "question": "What is the size of Pernod Ricard's operational efficiencies programme?", "expect": ["1bn", "1billion"]}
+{"id": "fy26-08", "source": "FY26.pdf", "pages": [5, 16], "answerable": true, "question": "What was the recurring EPS (earnings per share) in FY26?", "expect": ["5.85"]}
+{"id": "fy26-09", "source": "FY26.pdf", "pages": [5, 15, 56], "answerable": true, "question": "What was the organic operating margin (PRO margin) in FY26?", "expect": ["25.8%"]}
+{"id": "fy26-10", "source": "FY26.pdf", "pages": [4, 6, 45], "answerable": true, "question": "Which two markets weighed on FY26 sales?", "expect": ["uschina", "usandchina", "chinaandtheus", "chinaandus"]}
+{"id": "neg-01", "source": "", "pages": [], "answerable": false, "question": "What were Pernod Ricard's net sales in FY30?", "expect": []}
+{"id": "neg-02", "source": "", "pages": [], "answerable": false, "question": "What were Diageo's net sales in FY26?", "expect": []}
+{"id": "neg-03", "source": "", "pages": [], "answerable": false, "question": "What is the salary of Pernod Ricard's CEO?", "expect": []}
+{"id": "neg-04", "source": "", "pages": [], "answerable": false, "question": "How many data scientists does Pernod Ricard employ?", "expect": []}
+{"id": "neg-05", "source": "", "pages": [], "answerable": false, "question": "Will Pernod Ricard acquire Moët Hennessy in 2027?", "expect": []}
+{"id": "neg-06", "source": "", "pages": [], "answerable": false, "question": "What is the retail price of a bottle of Absolut Vodka in Paris?", "expect": []}

@@ -8,3 +8,5 @@ __pycache__/
 *.py[cod]
 samples/*.pdf
 samples/**/*.pdf
+eval/docs/
+eval/.index/

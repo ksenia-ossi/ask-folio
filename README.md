@@ -43,7 +43,7 @@ The index lives in `.askfolio/` by default; use `--index DIR` or `ASKFOLIO_INDEX
 5. **Answer** (`askfolio/answer.py`): the LLM gets the top 5 numbered excerpts and returns structured output `{found, answer, citations}`. The prompt allows only facts from the excerpts and asks for an answer in the language of the question. If `found` is false or the output cannot be parsed, the answer is replaced by the not-found sentence and citations are dropped.
 6. **Logging**: each query appends latency, tokens, cited and retrieved pages to `.askfolio/queries.jsonl`.
 
-The defaults (hybrid retrieval, 400-character chunks) come from the retrieval sweep in [annual-report-rag](https://github.com/ksenia-ossi/annual-report-rag), where hybrid at 400 characters had the best hit@5 (0.75, against 0.57 for dense only). That was measured on two English financial reports; for other documents, run `askfolio sweep` on a few questions of your own.
+The defaults (hybrid retrieval, 400-character chunks) come from the retrieval sweep below. It was measured on two English financial reports; for other documents, run `askfolio sweep` on a few questions of your own.
 
 ## Models
 
@@ -66,6 +66,37 @@ The embedding model always runs locally; it is downloaded from Hugging Face on f
 ```
 
 Metrics: answer accuracy (an expected string appears in the answer), citation accuracy (a cited page contains an expected string), retrieval hit@k (a retrieved chunk is on a reference page), correct refusals and hallucinated answers on unanswerable questions. Results go to `.askfolio/eval/`.
+
+## Evaluation
+
+`make eval` downloads two Pernod Ricard reports (the FY25 integrated annual report and the FY26 results presentation, 192 pages in total), indexes them and runs [eval/questions.jsonl](eval/questions.jsonl): 34 questions, 28 with an expected value and reference page, 6 whose answer is not in the documents. The question set comes from [annual-report-rag](https://github.com/ksenia-ossi/annual-report-rag). Results are in [eval/results/](eval/results/).
+
+Answers (hybrid retrieval, 400-character chunks, top 5 excerpts, `claude-haiku-5-5`):
+
+| metric | result |
+|---|---|
+| correct answers (answerable questions) | 21/28 (75%) |
+| citations on a page that contains the answer | 89% |
+| retrieval hit@5 | 0.75 |
+| correct refusals (unanswerable questions) | 6/6 |
+| invented answers on unanswerable questions | 0 |
+| latency per question, median / max | 0.94 s / 2.73 s |
+| tokens per question, input / output (mean) | 1,497 / 107 |
+
+Retrieval sweep, hit@5 on the 28 answerable questions (no LLM calls):
+
+| chunk size | BM25 | dense | hybrid |
+|---|---|---|---|
+| 400 | 0.68 | 0.61 | **0.75** |
+| 800 | 0.68 | 0.57 | 0.57 |
+| 1600 | 0.71 | 0.71 | 0.68 |
+
+Where it fails (7 of 28):
+
+- **Layout** (2): on a key-figures page the amounts are printed before their region labels, so text extraction puts each number next to the wrong region and the model swaps Europe and Asia/Rest of the World.
+- **Retrieval miss** (3): the right page is not in the top 5 (worldwide headcount, FY26 net sales, the two markets that weighed on FY26 sales), so the tool answers `Not found in the documents.` instead of guessing.
+- **Wrong figure** (1): FY26 organic growth given as -3.6% instead of -3.9%, although the right page was retrieved; -3.6% does not appear in the report text.
+- **Incomplete answer** (1): the excerpt was found, but the answer leaves out the 5% figure.
 
 ## Development
 
