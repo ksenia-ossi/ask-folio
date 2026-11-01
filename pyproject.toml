@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "docrag"
+version = "0.1.0"
+description = "Persistent PDF retrieval and question answering"
+requires-python = ">=3.11"
+dependencies = [
+    "pymupdf>=1.24",
+    "numpy>=1.26",
+    "langchain-core>=0.3",
+    "langchain-text-splitters>=0.3",
+    "langchain-anthropic>=0.3",
+    "sentence-transformers>=3.0",
+    "rank-bm25>=0.2.2",
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
+    "python-multipart>=0.0.9",
+]
+
+[project.optional-dependencies]
+openai = ["langchain-openai>=0.2"]
+dev = ["pytest>=8", "ruff>=0.6", "httpx>=0.27"]
+
+[project.scripts]
+docrag = "docrag.cli:main"
+
+[tool.setuptools]
+packages = ["docrag"]
+
+[tool.setuptools.package-data]
+docrag = ["web/*"]
+
+[tool.ruff]
+line-length = 120
