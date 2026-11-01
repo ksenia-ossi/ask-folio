@@ -1,0 +1,56 @@
+[
+  {
+    "chunk_size": 400,
+    "chunks": 832,
+    "retriever": "bm25",
+    "hit@5": 0.679
+  },
+  {
+    "chunk_size": 400,
+    "chunks": 832,
+    "retriever": "dense",
+    "hit@5": 0.607
+  },
+  {
+    "chunk_size": 400,
+    "chunks": 832,
+    "retriever": "hybrid",
+    "hit@5": 0.75
+  },
+  {
+    "chunk_size": 800,
+    "chunks": 455,
+    "retriever": "bm25",
+    "hit@5": 0.679
+  },
+  {
+    "chunk_size": 800,
+    "chunks": 455,
+    "retriever": "dense",
+    "hit@5": 0.571
+  },
+  {
+    "chunk_size": 800,
+    "chunks": 455,
+    "retriever": "hybrid",
+    "hit@5": 0.571
+  },
+  {
+    "chunk_size": 1600,
+    "chunks": 274,
+    "retriever": "bm25",
+    "hit@5": 0.714
+  },
+  {
+    "chunk_size": 1600,
+    "chunks": 274,
+    "retriever": "dense",
+    "hit@5": 0.714
+  },
+  {
+    "chunk_size": 1600,
+    "chunks": 274,
+    "retriever": "hybrid",
+    "hit@5": 0.679
+  }
+]

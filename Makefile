@@ -11,7 +11,18 @@ lint:
 test:
 	$(PY) -m pytest -q
 
+eval-data:
+	mkdir -p eval/docs
+	curl -fsSL -o eval/docs/IAR25.pdf "https://www.pernod-ricard.com/sites/default/files/inline-files/Pernod_Ricard_IAR25_ENGLISH.pdf"
+	curl -fsSL -o eval/docs/FY26.pdf "https://www.pernod-ricard.com/system/files/2026-08/Pernod%20Ricard%20FY26%20Financial%20Communication.pdf"
+
+eval: eval-data
+	ASKFOLIO_INDEX=eval/.index $(PY) -m askfolio ingest eval/docs
+	ASKFOLIO_INDEX=eval/.index $(PY) -m askfolio sweep --questions eval/questions.jsonl
+	ASKFOLIO_INDEX=eval/.index $(PY) -m askfolio eval --questions eval/questions.jsonl
+	cp eval/.index/eval/*.json* eval/results/
+
 serve:
 	$(PY) -m askfolio serve
 
-.PHONY: install lint test serve
+.PHONY: install lint test eval-data eval serve
